@@ -1,0 +1,19 @@
+.env
+.env.local
+*.db
+*.db-wal
+*.db-shm
+backend/data/
+
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
+
+# node
+node_modules/
+frontend/dist/
+
+.DS_Store
+.vercel
