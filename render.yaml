@@ -13,9 +13,9 @@ services:
         sync: false
       - key: LLM_MODEL
         value: gemini/gemini-3.5-flash-lite
-      # one model per key, so a model-wide outage on one doesn't take out both keys
+      # empty = every key uses LLM_MODEL (see README for why)
       - key: LLM_MODELS
-        value: gemini/gemini-3.5-flash-lite,gemini/gemini-3.1-flash-lite
+        value: ""
       - key: DATABASE_URL
         value: sqlite:////data/app.db
       - key: ALLOWED_ORIGINS
