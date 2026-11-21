@@ -1,0 +1,21 @@
+# Render blueprint for the backend: New -> Blueprint -> pick this repo.
+# LLM_API_KEYS is asked for in the dashboard and never stored in the repo.
+services:
+  - type: web
+    name: resilient-llm-chatbot-api
+    runtime: docker
+    plan: free
+    dockerContext: ./backend
+    dockerfilePath: ./backend/Dockerfile
+    healthCheckPath: /health
+    envVars:
+      - key: LLM_API_KEYS
+        sync: false
+      - key: LLM_MODEL
+        value: gemini/gemini-2.5-flash
+      - key: DATABASE_URL
+        value: sqlite:////data/app.db
+      - key: ALLOWED_ORIGINS
+        value: https://sikdaarrr-resilient-llm-chatbot.static.hf.space,http://localhost:3000
+      - key: ENABLE_FAILURE_SIMULATION
+        value: "true"

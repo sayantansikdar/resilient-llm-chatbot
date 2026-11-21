@@ -13,11 +13,12 @@ React (Vite)  ──HTTP──▶  FastAPI  ──▶  LLMGateway ──▶ Lite
 | | URL |
 |---|---|
 | Frontend | https://sikdaarrr-resilient-llm-chatbot.static.hf.space |
-| Backend | https://sikdaarrr-resilient-llm-chatbot-api.hf.space |
-| Health | https://sikdaarrr-resilient-llm-chatbot-api.hf.space/health |
-| API docs | https://sikdaarrr-resilient-llm-chatbot-api.hf.space/docs |
+| Backend | https://resilient-llm-chatbot-api.onrender.com |
+| Health | https://resilient-llm-chatbot-api.onrender.com/health |
+| API docs | https://resilient-llm-chatbot-api.onrender.com/docs |
 
-Both run on free Hugging Face Spaces (backend as a Docker Space, frontend as a static Space). A Space that has been idle for a long time may take a few seconds to wake up on the first request.
+- **Backend** runs on Render's free plan as a Docker web service, built from `render.yaml`. Free instances sleep after 15 minutes without traffic, so **the first request after a pause can take ~30–60 s** while it wakes up. Open `/health` once before testing. Render's free plan has no persistent disk, so SQLite history lasts as long as the running instance. Locally, the `chat-data` volume keeps it across restarts.
+- **Frontend** is the static build on a Hugging Face static Space, published with `scripts/deploy-frontend-hf.sh <backend-url>`.
 
 ## 2. Run locally
 
@@ -123,7 +124,7 @@ Other details:
 Set a base URL first (or use `http://localhost:8000`):
 
 ```bash
-API=https://sikdaarrr-resilient-llm-chatbot-api.hf.space
+API=https://resilient-llm-chatbot-api.onrender.com
 ```
 
 **Health**
