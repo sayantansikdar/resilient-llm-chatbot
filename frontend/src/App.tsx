@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { ApiError, getHealth, sendMessage, type ChatMetadata, type Health } from "./api";
 import { AssistantMessage } from "./components/AssistantMessage";
 import { Composer } from "./components/Composer";
+import { AlertIcon, ChevronIcon, ComposeIcon, SlidersIcon } from "./components/icons";
 import { SettingsPanel } from "./components/SettingsPanel";
 import { newSessionId } from "./session";
 
@@ -21,7 +22,7 @@ const SUGGESTIONS = [
 
 function errorText(err: unknown): string {
   if (err instanceof ApiError) {
-    if (err.status === 503) return "All model providers are unavailable right now (every API key failed). Please try again in a moment.";
+    if (err.status === 503) return "All model providers are unavailable right now. Every API key failed, so please try again in a moment.";
     if (err.status === 422) return `The request was rejected: ${err.message}`;
     if (err.status === 0) return err.message;
     return `Something went wrong (${err.status}): ${err.message}`;
@@ -37,11 +38,13 @@ export default function App() {
   const [busy, setBusy] = useState(false);
   const [health, setHealth] = useState<Health | null>(null);
   const [healthError, setHealthError] = useState(false);
-  const [showSettings, setShowSettings] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState("");
   const [sentSystemPrompt, setSentSystemPrompt] = useState("");
   const [simulateFailure, setSimulateFailure] = useState("");
+  const [scrolled, setScrolled] = useState(false);
   const nextId = useRef(1);
+  const scrollRef = useRef<HTMLElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -53,6 +56,8 @@ export default function App() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [entries, busy]);
+
+  const closeSettings = useCallback(() => setSettingsOpen(false), []);
 
   function push(entry: NewEntry) {
     setEntries((prev) => [...prev, { ...entry, id: nextId.current++ } as Entry]);
@@ -92,93 +97,110 @@ export default function App() {
     setDraft("");
   }
 
+  const status = health
+    ? `${health.keys_configured} keys · cache ${health.cache_enabled ? "on" : "off"}`
+    : healthError
+      ? "Backend unreachable"
+      : "Connecting…";
+
   return (
     <div className="app">
-      <header className="topbar">
-        <div className="brand">
-          <span className="logo" aria-hidden>◆</span>
-          <div>
-            <h1>Resilient Chat</h1>
-            <p className="session" title="Session id">{sessionId}</p>
-          </div>
+      <header className={`toolbar top ${scrolled ? "edge" : ""}`}>
+        <button className="icon-button" onClick={newChat} disabled={busy} aria-label="New chat" title="New chat">
+          <ComposeIcon />
+        </button>
+        <div className="title">
+          <h1>Assistant</h1>
+          <p className={`status ${health ? "ok" : healthError ? "down" : ""}`} title={sessionId}>
+            {status}
+          </p>
         </div>
-        <div className="topbar-actions">
-          <span className={`status ${health ? "ok" : healthError ? "down" : ""}`}>
-            {health
-              ? `${health.keys_configured} keys · cache ${health.cache_enabled ? "on" : "off"}`
-              : healthError
-                ? "backend unreachable"
-                : "connecting…"}
-          </span>
-          <button className="ghost" onClick={() => setShowSettings((s) => !s)} aria-expanded={showSettings}>
-            Settings
-          </button>
-          <button className="ghost" onClick={newChat} disabled={busy}>
-            New chat
-          </button>
-        </div>
+        <button
+          className={`icon-button ${settingsOpen ? "active" : ""}`}
+          onClick={() => setSettingsOpen((o) => !o)}
+          aria-label="Settings"
+          aria-expanded={settingsOpen}
+          title="Settings"
+        >
+          <SlidersIcon />
+        </button>
       </header>
 
-      {showSettings && (
-        <SettingsPanel
-          systemPrompt={systemPrompt}
-          onSystemPromptChange={setSystemPrompt}
-          simulateFailure={simulateFailure}
-          onSimulateFailureChange={setSimulateFailure}
-          simulationAvailable={health?.failure_simulation ?? true}
-        />
-      )}
+      <SettingsPanel
+        open={settingsOpen}
+        onClose={closeSettings}
+        systemPrompt={systemPrompt}
+        onSystemPromptChange={setSystemPrompt}
+        simulateFailure={simulateFailure}
+        onSimulateFailureChange={setSimulateFailure}
+        simulationAvailable={health?.failure_simulation ?? true}
+      />
 
-      <main className="chat">
-        {entries.length === 0 && (
-          <div className="empty">
-            <h2>Ask anything</h2>
-            <p>
-              Every reply shows where it came from (live model or cache), which model answered, how long it took and
-              the tokens used by that request.
-            </p>
-            <div className="suggestions">
-              {SUGGESTIONS.map((s) => (
-                <button key={s} className="suggestion" onClick={() => send(s)} disabled={busy}>
-                  {s}
-                </button>
-              ))}
+      <main className="chat" ref={scrollRef} onScroll={(e) => setScrolled(e.currentTarget.scrollTop > 4)}>
+        <div className="thread">
+          {entries.length === 0 && (
+            <div className="empty">
+              <h2>Ask anything.</h2>
+              <p>
+                Each reply shows whether it came from the live model or the cache, which model answered, how long it took
+                and the tokens that request used.
+              </p>
+              <div className="group suggestions">
+                {SUGGESTIONS.map((s) => (
+                  <button key={s} className="group-row" onClick={() => send(s)} disabled={busy}>
+                    <span>{s}</span>
+                    <span className="row-chevron">
+                      <ChevronIcon />
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {entries.map((entry) => {
-          if (entry.role === "assistant") {
-            return <AssistantMessage key={entry.id} content={entry.content} metadata={entry.metadata} />;
-          }
-          if (entry.role === "error") {
+          {entries.map((entry) => {
+            if (entry.role === "assistant") {
+              return <AssistantMessage key={entry.id} content={entry.content} metadata={entry.metadata} />;
+            }
+            if (entry.role === "error") {
+              return (
+                <div key={entry.id} className="row row-in" role="alert">
+                  <div className="bubble bubble-error">
+                    <AlertIcon />
+                    <span>{entry.content}</span>
+                  </div>
+                </div>
+              );
+            }
             return (
-              <div key={entry.id} className="message error" role="alert">
-                <div className="bubble">{entry.content}</div>
+              <div key={entry.id} className="row row-out">
+                <div className="bubble bubble-out">{entry.content}</div>
               </div>
             );
-          }
-          return (
-            <div key={entry.id} className="message user">
-              <div className="bubble">{entry.content}</div>
-            </div>
-          );
-        })}
+          })}
 
-        {busy && (
-          <div className="message assistant pending" aria-live="polite">
-            <div className="bubble">
-              <span className="dot" />
-              <span className="dot" />
-              <span className="dot" />
+          {busy && (
+            <div className="row row-in" aria-live="polite" aria-label="Assistant is typing">
+              <div className="bubble bubble-in typing">
+                <span />
+                <span />
+                <span />
+              </div>
             </div>
-          </div>
-        )}
-        <div ref={bottomRef} />
+          )}
+          <div ref={bottomRef} className="bottom-spacer" />
+        </div>
       </main>
 
-      <footer className="footer">
-        {simulateFailure && <div className="sim-banner">Next message will simulate: {simulateFailure}</div>}
+      <footer className="toolbar bottom">
+        {simulateFailure && (
+          <div className="drill-banner">
+            Next message simulates <code>{simulateFailure}</code>
+            <button className="text-button small" onClick={() => setSimulateFailure("")}>
+              Cancel
+            </button>
+          </div>
+        )}
         <Composer value={draft} onChange={setDraft} onSend={() => send(draft)} busy={busy} />
       </footer>
     </div>

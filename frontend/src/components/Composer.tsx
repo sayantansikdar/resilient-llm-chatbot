@@ -1,4 +1,5 @@
 import { useEffect, useRef, type FormEvent, type KeyboardEvent } from "react";
+import { ArrowUpIcon } from "./icons";
 
 const MAX_CHARS = 4000;
 
@@ -11,8 +12,9 @@ interface Props {
 
 export function Composer({ value, onChange, onSend, busy }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null);
-  const tooLong = value.trim().length > MAX_CHARS;
-  const canSend = !busy && value.trim().length > 0 && !tooLong;
+  const length = value.trim().length;
+  const tooLong = length > MAX_CHARS;
+  const canSend = !busy && length > 0 && !tooLong;
 
   // grow with the content, up to the CSS max-height
   useEffect(() => {
@@ -40,24 +42,31 @@ export function Composer({ value, onChange, onSend, busy }: Props) {
 
   return (
     <form className="composer" onSubmit={submit}>
-      <textarea
-        ref={ref}
-        data-testid="chat-input"
-        rows={1}
-        placeholder="Message the assistant…  (Enter to send, Shift+Enter for a new line)"
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        onKeyDown={onKeyDown}
-        aria-label="Message"
-      />
-      <div className="composer-side">
-        {value.length > MAX_CHARS * 0.8 && (
+      <div className={`field-pill ${tooLong ? "invalid" : ""}`}>
+        <textarea
+          ref={ref}
+          data-testid="chat-input"
+          rows={1}
+          placeholder="Message"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          onKeyDown={onKeyDown}
+          aria-label="Message"
+        />
+        {length > MAX_CHARS * 0.8 && (
           <span className={`counter ${tooLong ? "over" : ""}`}>
-            {value.trim().length}/{MAX_CHARS}
+            {length}/{MAX_CHARS}
           </span>
         )}
-        <button type="submit" data-testid="send-button" disabled={!canSend}>
-          {busy ? "Sending…" : "Send"}
+        <button
+          type="submit"
+          className="send"
+          data-testid="send-button"
+          disabled={!canSend}
+          aria-label={busy ? "Sending" : "Send"}
+          title="Send (Enter)"
+        >
+          <ArrowUpIcon />
         </button>
       </div>
     </form>
