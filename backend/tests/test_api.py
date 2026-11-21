@@ -260,7 +260,8 @@ def test_simulated_all_keys_fail_is_503(client):
     sid = new_session()
     res = chat(client, sid, "hello", headers={"X-Simulate-Failure": "*=429"})
     assert res.status_code == 503
-    assert res.json() == {"detail": "all providers unavailable"}
+    assert res.json()["detail"] == "all providers unavailable"
+    assert [f["key_id"] for f in res.json()["failures"]] == ["key_1", "key_2"]
     assert client.get(f"/sessions/{sid}/messages").status_code == 404
 
 
@@ -309,7 +310,7 @@ def test_real_errors_on_every_key_are_503(client, provider):
     provider.fail["secret-two"] = server_error()
     res = chat(client, new_session(), "hello")
     assert res.status_code == 503
-    assert res.json() == {"detail": "all providers unavailable"}
+    assert res.json()["detail"] == "all providers unavailable"
 
 
 def test_unexpected_provider_exception_is_handled(client, provider):
@@ -330,3 +331,38 @@ def test_unknown_route_is_json(client):
     res = client.get("/nope")
     assert res.status_code == 404
     assert res.json() == {"detail": "Not Found"}
+
+
+# --- transient errors get one more try ----------------------------------------
+
+def test_transient_error_on_last_key_is_retried_once(client, provider):
+    provider.fail_once["secret-two"] = server_error()
+    res = chat(client, new_session(), "hello", headers={"X-Simulate-Failure": "key_1=429"})
+    assert res.status_code == 200
+    meta = res.json()["metadata"]
+    assert meta["key_id"] == "key_2"
+    assert meta["fallback_attempts"] == 2  # simulated key_1 + key_2's first try
+
+
+def test_rate_limits_are_not_retried(client, provider):
+    provider.fail["secret-one"] = rate_limited()
+    provider.fail_once["secret-two"] = rate_limited()
+    res = chat(client, new_session(), "hello")
+    assert res.status_code == 503
+    assert len(provider.calls) == 2
+
+
+def test_simulated_failures_are_not_retried(client, provider):
+    res = chat(client, new_session(), "hello", headers={"X-Simulate-Failure": "*=503"})
+    assert res.status_code == 503
+    assert provider.calls == []
+
+
+def test_503_body_explains_failures_without_secrets(client, provider):
+    provider.fail["secret-one"] = rate_limited()
+    provider.fail["secret-two"] = server_error()
+    res = chat(client, new_session(), "hello")
+    failures = res.json()["failures"]
+    assert failures[0] == {"key_id": "key_1", "error": "RateLimitError (429)"}
+    assert failures[1]["key_id"] == "key_2"
+    assert "secret" not in res.text

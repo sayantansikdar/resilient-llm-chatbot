@@ -122,8 +122,15 @@ def create_app(settings: Settings | None = None, gateway: LLMGateway | None = No
 
             try:
                 result = await gateway.complete(messages, simulated_failures=simulated)
-            except AllProvidersUnavailable:
-                raise HTTPException(status_code=503, detail="all providers unavailable")
+            except AllProvidersUnavailable as exc:
+                # which keys failed and why (error type + status only, never the key)
+                return JSONResponse(
+                    status_code=503,
+                    content={
+                        "detail": "all providers unavailable",
+                        "failures": [{"key_id": k, "error": reason} for k, reason in exc.failures],
+                    },
+                )
 
             metadata = ChatMetadata(
                 resolution_source=result.resolution_source,

@@ -82,7 +82,8 @@ All configuration comes from environment variables (see `.env.example`).
 `backend/app/llm.py` holds the key pool and the failover loop. Each key becomes `key_1`, `key_2`, … with its model, and every call goes through `litellm.acompletion(model, messages, api_key=…, num_retries=0)`.
 
 - The deployed pool is two keys from two separate Google projects (Gemini's free-tier limits are per project, so two keys in one project would be rate-limited together), each on a different model (see Bonus features).
-- Keys are tried **in order**. Any error from a key (LiteLLM's `RateLimitError` for 429 and quota exhaustion, `InternalServerError`/`BadGatewayError`/`ServiceUnavailableError` for 5xx, timeouts, connection errors, a revoked key, or an empty completion) is logged and the next key is tried. When every key has failed the API returns `503 {"detail": "all providers unavailable"}` and nothing is written to history.
+- Keys are tried **in order**. Any error from a key (LiteLLM's `RateLimitError` for 429 and quota exhaustion, `InternalServerError`/`BadGatewayError`/`ServiceUnavailableError` for 5xx, timeouts, connection errors, a revoked key, or an empty completion) is logged and the next key is tried. When every key has failed the API returns `503 {"detail": "all providers unavailable", "failures": [...]}` and nothing is written to history. `failures` lists each key id with the error type and status (for example `"RateLimitError (429)"`). It never contains the key itself, and it makes a 503 explainable without access to the server logs.
+- If every key failed and some failures were **real transient errors** (5xx, timeouts, connection errors), those keys get **one more try** after ~0.6 s. Gemini's free tier returns `503 "model is experiencing high demand"` in short bursts, and a single retry clears most of them. Rate limits are not retried (retrying a 429 straight away doesn't help), and neither are simulated failures, so `*=429` still fails fast and deterministically.
 - LiteLLM's own retries are switched off (`num_retries=0`) so one bad key costs one attempt, not several, and the failover order stays predictable.
 - I drive the loop myself instead of using LiteLLM's `Router` fallbacks for three reasons: the response has to say exactly which key answered (`key_id`) and how many failed first (`fallback_attempts`); the order must be deterministic (key_1 before key_2); and a simulated failure must stay inside one request, whereas the Router puts failing deployments into a shared cooldown that would leak into the next request.
 - `X-Simulate-Failure` raises the **same LiteLLM exception classes** a real provider error produces (429 → `RateLimitError`, 500 → `InternalServerError`, 502 → `BadGatewayError`, 503 → `ServiceUnavailableError`), so the demo goes through exactly the code path a real outage does. It is only honoured when `ENABLE_FAILURE_SIMULATION=true`; a malformed value is a 422.
@@ -160,7 +161,8 @@ curl -s $API/chat -H 'Content-Type: application/json' -H 'X-Simulate-Failure: ke
 
 curl -s -i $API/chat -H 'Content-Type: application/json' -H 'X-Simulate-Failure: *=429' \
   -d '{"session_id":"demo-c","message":"This one fails"}'
-# HTTP 503 {"detail":"all providers unavailable"}, not stored in history
+# HTTP 503 {"detail":"all providers unavailable","failures":[{"key_id":"key_1","error":"RateLimitError (429)"},...]}
+# nothing stored in history
 ```
 
 **Multi-turn and history**
@@ -190,7 +192,7 @@ Every assistant reply shows a badge (`LIVE_INFERENCE` in blue, `LLM_CACHE` in gr
 make test        # or: cd backend && pytest -q
 ```
 
-59 tests cover the API contract: cache hits and misses (including caching past two turns), failover on simulated and real LiteLLM exceptions, the 503/422/404 cases, per-request token counts, multi-turn context, session isolation, system prompt persistence, and history surviving an app restart. Most tests use a fake provider. `test_gateway.py` goes through the real `litellm.acompletion` with LiteLLM's `mock_response`, so no network or keys are needed.
+63 tests cover the API contract: cache hits and misses (including caching past two turns), failover on simulated and real LiteLLM exceptions, the single retry of transient errors, the 503/422/404 cases, per-request token counts, multi-turn context, session isolation, system prompt persistence, and history surviving an app restart. Most tests use a fake provider. `test_gateway.py` goes through the real `litellm.acompletion` with LiteLLM's `mock_response`, so no network or keys are needed.
 
 ## 5. Setup Used
 

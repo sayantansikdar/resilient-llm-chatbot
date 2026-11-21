@@ -16,13 +16,16 @@ class FakeProvider:
 
     def __init__(self, delay: float = 0.05):
         self.calls: list[dict] = []
-        self.fail: dict[str, Exception] = {}  # api_key -> exception to raise
+        self.fail: dict[str, Exception] = {}  # api_key -> exception to raise every time
+        self.fail_once: dict[str, Exception] = {}  # api_key -> exception for the next call only
         self.delay = delay
         self.reply_for = lambda messages: f"echo: {messages[-1]['content']}"
 
     async def __call__(self, **kwargs):
         self.calls.append(kwargs)
         await asyncio.sleep(self.delay)
+        if kwargs["api_key"] in self.fail_once:
+            raise self.fail_once.pop(kwargs["api_key"])
         if kwargs["api_key"] in self.fail:
             raise self.fail[kwargs["api_key"]]
         messages = kwargs["messages"]
@@ -57,6 +60,7 @@ def make_client(tmp_path, provider, **overrides):
     gateway = LLMGateway(
         keys=build_key_pool(settings),
         cache_enabled=settings.cache_enabled,
+        transient_retry_delay=0.01,
         completion_fn=provider,
     )
     return TestClient(create_app(settings, gateway))
