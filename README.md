@@ -64,7 +64,7 @@ All configuration comes from environment variables (see `.env.example`).
 | Variable | Default | Meaning |
 |---|---|---|
 | `LLM_API_KEYS` | – | Comma-separated key pool. Ids are `key_1`, `key_2`, … in this order |
-| `LLM_MODEL` | `gemini/gemini-2.5-flash` | LiteLLM model name used with every key |
+| `LLM_MODEL` | `gemini/gemini-3.5-flash-lite` | LiteLLM model name used with every key |
 | `LLM_MODELS` | – | Optional, one model per key (same order as the keys) to spread the pool across models |
 | `DATABASE_URL` | `sqlite:///./data/app.db` (`sqlite:////data/app.db` in Docker) | SQLite file location |
 | `ALLOWED_ORIGINS` | `http://localhost:3000` | Comma-separated CORS origins |
@@ -81,6 +81,7 @@ All configuration comes from environment variables (see `.env.example`).
 
 `backend/app/llm.py` holds the key pool and the failover loop. Each key becomes `key_1`, `key_2`, … with its model, and every call goes through `litellm.acompletion(model, messages, api_key=…, num_retries=0)`.
 
+- The deployed pool is two keys from two separate Google projects (Gemini's free-tier limits are per project, so two keys in one project would be rate-limited together), each on a different model (see Bonus features).
 - Keys are tried **in order**. Any error from a key (LiteLLM's `RateLimitError` for 429 and quota exhaustion, `InternalServerError`/`BadGatewayError`/`ServiceUnavailableError` for 5xx, timeouts, connection errors, a revoked key, or an empty completion) is logged and the next key is tried. When every key has failed the API returns `503 {"detail": "all providers unavailable"}` and nothing is written to history.
 - LiteLLM's own retries are switched off (`num_retries=0`) so one bad key costs one attempt, not several, and the failover order stays predictable.
 - I drive the loop myself instead of using LiteLLM's `Router` fallbacks for three reasons: the response has to say exactly which key answered (`key_id`) and how many failed first (`fallback_attempts`); the order must be deterministic (key_1 before key_2); and a simulated failure must stay inside one request, whereas the Router puts failing deployments into a shared cooldown that would leak into the next request.
@@ -201,7 +202,7 @@ make test        # or: cd backend && pytest -q
 
 - **Failure simulation in the UI.** A picker next to the chat sends `X-Simulate-Failure` for one message, so failover can be shown live without curl.
 - **Per-session system prompt that persists.** It's stored in a `sessions` table, applied from the next message, and resettable with an empty value. It never shows up in history.
-- **Key pool across models.** `LLM_MODELS` assigns a different model to each key (for example a `flash-lite` key as the last resort), and the cache is checked for every model in the pool.
+- **Key pool across models.** `LLM_MODELS` assigns a model to each key. The deployment uses `gemini-3.5-flash-lite` on key_1 and `gemini-3.1-flash-lite` on key_2. During testing Gemini returned `503 "model is experiencing high demand"` for whole models at a time, and a second key on the *same* model doesn't help with that, while a different model does. The `model` field in each response shows which one answered, and the cache is checked for every model in the pool.
 - **Extra metadata in the UI.** Besides the four required fields, each reply shows which key answered and how many failovers happened.
 - **Concurrency safety.** A per-session lock serialises requests on one session, and each exchange is stored in a single transaction.
 - **Hardened containers.** Both run as non-root, the backend has a Docker `HEALTHCHECK`, and the frontend gets its backend URL at runtime instead of baking it in.

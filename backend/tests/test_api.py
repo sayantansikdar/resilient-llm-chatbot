@@ -48,7 +48,7 @@ def test_chat_live_inference(client):
     assert body["reply"]
     meta = body["metadata"]
     assert meta["resolution_source"] == "LIVE_INFERENCE"
-    assert meta["model"] == "gemini/gemini-2.5-flash"
+    assert meta["model"] == "gemini/gemini-3.5-flash-lite"
     assert isinstance(meta["latency_ms"], int) and meta["latency_ms"] > 0
     assert meta["input_tokens"] > 0 and meta["output_tokens"] > 0
     assert meta["key_id"] == "key_1"

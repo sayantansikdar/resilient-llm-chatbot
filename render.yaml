@@ -12,7 +12,10 @@ services:
       - key: LLM_API_KEYS
         sync: false
       - key: LLM_MODEL
-        value: gemini/gemini-2.5-flash
+        value: gemini/gemini-3.5-flash-lite
+      # one model per key, so a model-wide outage on one doesn't take out both keys
+      - key: LLM_MODELS
+        value: gemini/gemini-3.5-flash-lite,gemini/gemini-3.1-flash-lite
       - key: DATABASE_URL
         value: sqlite:////data/app.db
       - key: ALLOWED_ORIGINS

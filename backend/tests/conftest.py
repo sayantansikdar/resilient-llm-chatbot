@@ -35,11 +35,11 @@ class FakeProvider:
 
 
 def rate_limited():
-    return litellm.RateLimitError(message="quota exceeded", llm_provider="gemini", model="gemini-2.5-flash")
+    return litellm.RateLimitError(message="quota exceeded", llm_provider="gemini", model="gemini-3.5-flash-lite")
 
 
 def server_error():
-    return litellm.ServiceUnavailableError(message="overloaded", llm_provider="gemini", model="gemini-2.5-flash")
+    return litellm.ServiceUnavailableError(message="overloaded", llm_provider="gemini", model="gemini-3.5-flash-lite")
 
 
 @pytest.fixture

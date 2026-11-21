@@ -1,7 +1,7 @@
 import os
 from dataclasses import dataclass, field
 
-DEFAULT_MODEL = "gemini/gemini-2.5-flash"
+DEFAULT_MODEL = "gemini/gemini-3.5-flash-lite"
 DEFAULT_SYSTEM_PROMPT = "You are a helpful assistant. Keep answers clear and concise."
 
 

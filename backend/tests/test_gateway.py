@@ -16,8 +16,8 @@ MESSAGES = [
 
 def gateway(mock_response, **kwargs):
     keys = [
-        ApiKey("key_1", "gemini/gemini-2.5-flash", "k1"),
-        ApiKey("key_2", "gemini/gemini-2.5-flash", "k2"),
+        ApiKey("key_1", "gemini/gemini-3.5-flash-lite", "k1"),
+        ApiKey("key_2", "gemini/gemini-3.5-flash-lite", "k2"),
     ]
     fn = functools.partial(litellm.acompletion, mock_response=mock_response)
     return LLMGateway(keys=keys, completion_fn=fn, **kwargs)
@@ -51,4 +51,4 @@ async def test_simulated_failure_uses_litellm_exceptions():
 
 
 def test_key_repr_hides_secret():
-    assert "k1" not in repr(ApiKey("key_1", "gemini/gemini-2.5-flash", "k1"))
+    assert "k1" not in repr(ApiKey("key_1", "gemini/gemini-3.5-flash-lite", "k1"))
