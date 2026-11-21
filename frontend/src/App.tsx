@@ -24,7 +24,9 @@ function errorText(err: unknown): string {
   if (err instanceof ApiError) {
     if (err.status === 503) return "All model providers are unavailable right now. Every API key failed, so please try again in a moment.";
     if (err.status === 422) return `The request was rejected: ${err.message}`;
-    if (err.status === 0) return err.message;
+    if (err.status === 0) {
+      return "Can't reach the server. It may be waking up (the free hosting sleeps when idle), so try again in about 30 seconds.";
+    }
     return `Something went wrong (${err.status}): ${err.message}`;
   }
   return "Something went wrong. Please try again.";
@@ -47,10 +49,32 @@ export default function App() {
   const scrollRef = useRef<HTMLElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // Free hosting sleeps when idle and takes up to a minute to wake, so keep
+  // checking for a while instead of giving up after the first failed request.
   useEffect(() => {
-    getHealth()
-      .then(setHealth)
-      .catch(() => setHealthError(true));
+    let cancelled = false;
+    let timer: number | undefined;
+    const started = Date.now();
+
+    async function check() {
+      try {
+        const h = await getHealth();
+        if (cancelled) return;
+        setHealth(h);
+        setHealthError(false);
+      } catch {
+        if (cancelled) return;
+        const waited = Date.now() - started;
+        setHealthError(waited > 120_000);
+        if (waited <= 120_000) timer = window.setTimeout(check, 4000);
+      }
+    }
+
+    check();
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timer);
+    };
   }, []);
 
   useEffect(() => {
@@ -83,6 +107,7 @@ export default function App() {
       });
       if (promptChanged) setSentSystemPrompt(systemPrompt.trim());
       push({ role: "assistant", content: res.reply, metadata: res.metadata });
+      if (!health) getHealth().then(setHealth).catch(() => {});
     } catch (err) {
       push({ role: "error", content: errorText(err) });
     } finally {
@@ -101,7 +126,7 @@ export default function App() {
     ? `${health.keys_configured} keys · cache ${health.cache_enabled ? "on" : "off"}`
     : healthError
       ? "Backend unreachable"
-      : "Connecting…";
+      : "Waking up server…";
 
   return (
     <div className="app">
@@ -111,7 +136,7 @@ export default function App() {
         </button>
         <div className="title">
           <h1>Assistant</h1>
-          <p className={`status ${health ? "ok" : healthError ? "down" : ""}`} title={sessionId}>
+          <p className={`status ${health ? "ok" : healthError ? "down" : "waking"}`} title={sessionId}>
             {status}
           </p>
         </div>

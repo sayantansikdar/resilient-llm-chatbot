@@ -123,7 +123,7 @@ Other details:
 
 ## 4. Verification
 
-Set a base URL first (or use `http://localhost:8000`):
+The quickest way is `scripts/demo.sh`, which walks through every step below against the deployed backend (or `scripts/demo.sh http://localhost:8000`), pausing between steps. To run them by hand, set a base URL first:
 
 ```bash
 API=https://resilient-llm-chatbot-api.onrender.com

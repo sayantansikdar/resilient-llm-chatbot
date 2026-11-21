@@ -154,7 +154,8 @@ textarea:focus-visible {
 }
 
 .status.ok::before,
-.status.down::before {
+.status.down::before,
+.status.waking::before {
   content: "";
   display: inline-block;
   width: 6px;
@@ -170,6 +171,11 @@ textarea:focus-visible {
 
 .status.down::before {
   background: var(--red);
+}
+
+.status.waking::before {
+  background: var(--orange);
+  animation: typing 1.3s infinite ease-in-out;
 }
 
 .icon-button {
